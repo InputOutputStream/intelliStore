@@ -1,21 +1,3 @@
-lancer la camera et compiler en python QT_QPA_PLATFORM=xcb python3 main.py
-
-compiler en c g++ main.cpp mongoose.c -o mon_backend $(pkg-config --cflags --libs opencv4) -lpthread
-    ./mon_backend
-
-
-
-
-
-
-Pour automatiser la reproduction de ton environnement sur une nouvelle machine (sous Ubuntu/Debian), le plus efficace est de créer un script Shell (.sh).
-
-Ce script va installer les paquets système, configurer Python, préparer l'environnement C++ et créer l'arborescence des dossiers.
-Script d'automatisation : setup_env.sh
-
-Copie ce code dans un fichier nommé setup_env.sh :
-code Bash
-
 #!/bin/bash
 
 # --- COULEURS POUR LA LISIBILITÉ ---
@@ -74,48 +56,3 @@ echo -n "MySQL : " && mysql --version
 
 echo -e "${BLUE}=== Installation terminée ! ===${NC}"
 echo -e "Veuillez redémarrer votre terminal ou taper : ${GREEN}source ~/.bashrc${NC}"
-
-Comment utiliser ce script ?
-
-    Transférer le fichier sur la nouvelle machine.
-
-    Donner les droits d'exécution au script :
-    code Bash
-
-    chmod +x setup_env.sh
-
-    Lancer l'installation :
-    code Bash
-
-    ./setup_env.sh
-
-Ce que ce script installe précisément pour toi :
-
-    C++ :
-
-        build-essential : Install g++ et make.
-
-        libopencv-dev & libopencv-contrib-dev : Installe OpenCV avec les modules de reconnaissance faciale (Face/LBPH).
-
-        pkg-config : Permet de compiler ton code C++ facilement sans chercher les chemins des librairies.
-
-    Python :
-
-        Toutes les librairies nécessaires : cv2, requests, mysql-connector, fpdf2 (version plus moderne de fpdf), et pyserial.
-
-    Système :
-
-        mysql-server : Installe le moteur de base de données.
-
-        Configuration XCB : Ajoute automatiquement la ligne export QT_QPA_PLATFORM=xcb dans le fichier de configuration de ton terminal (.bashrc) pour que tes fenêtres OpenCV s'ouvrent sans erreur.
-
-    Projet :
-
-        Il crée automatiquement les dossiers images/clients, temp et invoices avec les bonnes permissions pour éviter les erreurs d'écriture.
-
-Conseil supplémentaire
-
-Une fois le script terminé, n'oublie pas de compiler ton fichier C++ sur la nouvelle machine car l'exécutable compilé sur ton ancienne machine risque de ne pas fonctionner sur la nouvelle :
-code Bash
-
-g++ main.cpp mongoose.c -o smart_recognizer `pkg-config --cflags --libs opencv4` -lpthread -lstdc++fs
