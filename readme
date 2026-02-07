@@ -1,0 +1,4 @@
+lancer la camera et compiler en python QT_QPA_PLATFORM=xcb python3 main.py
+
+compiler en c g++ main.cpp mongoose.c -o mon_backend $(pkg-config --cflags --libs opencv4) -lpthread
+    ./mon_backend
