@@ -16,9 +16,14 @@ DB_CONFIG = {
 PATHS = {
     'invoices': '../invoices',
     'temp_faces': '../images/temp',
+    'temp_produit': '../images/temp_produit',
     'cascade': cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
 }
 CPP_SERVER_URL = "http://localhost:8000/identify"
+
+# Nouvelle URL pour la reconnaissance de produit
+CPP_SERVER_URL_Produit = "http://localhost:8080/identify_produit"
+
 
 class DatabaseManager:
     """Gère toutes les interactions avec la base de données MySQL."""
@@ -77,13 +82,26 @@ class SmartStore:
     def __init__(self):
         self.db_manager = DatabaseManager(DB_CONFIG)
         self.face_cascade = cv2.CascadeClassifier(PATHS['cascade'])
+        self.produit_cascade = cv2.CascadeClassifier(PATHS['cascade'])  # temporaire
         self.last_added = {}  # Pour éviter les ajouts multiples (debounce)
+        
+        self.detection_count = 0 # Compteur pour éviter les détections multiples
+        self.last_detected_id = None # Dernier ID détecté pour le produit
 
     def _get_client_id_from_vision(self, image_path):
         """Communique avec le module C++ pour identifier le client."""
         try:
             r = requests.post(CPP_SERVER_URL, data={'path': image_path}, timeout=1.5)
             return r.json().get('client_id')
+        except Exception:
+            return None
+        
+        
+    def _get_produit_id_from_vision(self, image_path):
+        """Communique avec le module C++ pour identifier le produit."""
+        try:
+            r = requests.post(CPP_SERVER_URL_Produit, data={'path': image_path}, timeout=1.5)
+            return r.json().get('produit_id')
         except Exception:
             return None
 
@@ -160,40 +178,70 @@ class SmartStore:
 
     def run(self):
         cap = cv2.VideoCapture(0)
-        if not os.path.exists(PATHS['temp_faces']): os.makedirs(PATHS['temp_faces'])
-
-        print(" Système Smart Store démarré...")
         
         while True:
             ret, frame = cap.read()
             if not ret: break
-
+            
+            h_frame, w_frame, _ = frame.shape
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+            # --- PARTIE 1 : RECONNAISSANCE DU CLIENT (VISAGE) ---
             faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
-
             current_client = None
-
             for (x, y, w, h) in faces:
+                # Identification du client (ton code actuel)
                 face_img = gray[y:y+h, x:x+w]
                 img_path = os.path.join(PATHS['temp_faces'], "current_face.jpg")
                 cv2.imwrite(img_path, cv2.resize(face_img, (200, 200)))
-
-                client_id = self._get_client_id_from_vision(img_path)
+                current_client = self._get_client_id_from_vision(img_path)
                 
-                if client_id:
-                    current_client = client_id
-                    label, color = f"Client: {client_id}", (0, 255, 0)
-                    #Simulation d'ajout de produit (ici, on ajoute le produit 101 pour chaque détection), on va appeler
-                    #l'api de reconnaissance de produit pour récupérer le produit détecté et l'ajouter au panier du client
-                    self.add_to_cart(client_id, 101) # Simulation produit 101
-                else:
-                    label, color = "Inconnu", (0, 0, 255)
-
+                color = (0, 255, 0) if current_client else (0, 0, 255)
                 cv2.rectangle(frame, (x, y), (x+w, y+h), color, 2)
-                cv2.putText(frame, label, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+                cv2.putText(frame, f"Client: {current_client}", (x, y-10), 1, 1.5, color, 2)
+
+            # --- PARTIE 2 : ZONE DE SCAN PRODUIT (RECTANGLE FIXE) ---
+            # On définit un carré au milieu de l'écran
+            box_size = 250
+            margin = 20
+            x1, y1 = margin, margin
+            x2, y2 = x1 + box_size, y1 + box_size
+
+            # x1, y1 = (w_frame//2 - box_size//2), (h_frame//2 - box_size//2)
+            # x2, y2 = x1 + box_size, y1 + box_size
             
+            # Dessiner la zone de scan en bleu
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
+            cv2.putText(frame, "SCAN PRODUIT", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 0, 0), 2)
+            # cv2.putText(frame, "PLACEZ LE PRODUIT ICI", (x1, y1-10), 1, 1.2, (255, 0, 0), 2)
+                
+            # Si un client est présent, on analyse ce qu'il y a dans le carré bleu
+            if current_client:
+                roi_produit = frame[y1:y2, x1:x2] # On découpe la zone du produit
+                prod_path = os.path.join(PATHS['temp_produit'], "scan_produit.jpg")
+                cv2.imwrite(prod_path, roi_produit)
+                
+                # Appel à ton serveur C++ pour le produit
+                produit_id = self._get_produit_id_from_vision(prod_path)
+                if produit_id:
+                    if produit_id == self.last_detected_id:
+                        self.detection_count += 1
+                    else:
+                        self.detection_count = 1
+                        self.last_detected_id = produit_id
+            
+                    if self.detection_count == 20: # Si le même produit est détecté pendant 15 frames consécutives (~0.5s), on l'ajoute au panier
+                        self.add_to_cart(current_client, produit_id)
+                        cv2.putText(frame, f"PRODUIT DETECTE: {produit_id}", (x1, y2+30), 1, 1.5, (0, 255, 255), 2)
+                        self.detection_count = -100 # Reset pour éviter les ajouts multiples
+                else:
+                    cv2.putText(frame, "Aucun produit détecté", (x1, y2+30), 1, 1.5, (0, 0, 255), 2)
+                    self.detection_count = 0
+                    self.last_detected_id = None
+                    
+
+
             cv2.imshow('Smart Store', frame)
-            
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'): break
             if key == ord('p') and current_client:
@@ -202,6 +250,8 @@ class SmartStore:
         cap.release()
         cv2.destroyAllWindows()
         self.db_manager.close()
+
+
 
 if __name__ == "__main__":
     store = SmartStore()
