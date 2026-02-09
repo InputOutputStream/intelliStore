@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Système d'Empreintes</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: #fff;
+            padding: 15px 20px;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 24px;
+            color: #333;
+        }
+
+        .subtitle {
+            font-size: 13px;
+            color: #666;
+            margin-top: 3px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: #fff;
+            padding: 15px;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .stat-card h3 {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 8px;
+            font-weight: normal;
+        }
+
+        .stat-card .value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .section {
+            background: #fff;
+            padding: 15px;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+
+        .section h2 {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 12px;
+            border-bottom: 1px solid #e0e0e0;
+            padding-bottom: 5px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            background: #f0f0f0;
+            padding: 10px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 13px;
+            color: #555;
+        }
+
+        td {
+            padding: 10px;
+            border-bottom: 1px solid #e0e0e0;
+            color: #333;
+            font-size: 13px;
+        }
+
+        tr:hover {
+            background: #f9f9f9;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .refresh-btn {
+            background: #333;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            margin-top: 10px;
+        }
+
+        .refresh-btn:hover {
+            background: #555;
+        }
+
+        .timestamp {
+            color: #888;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+
+        .loading {
+            padding: 20px 0;
+            font-size: 13px;
+            color: #666;
+            text-align: center;
+        }
+
+        .error {
+            background: #ffe6e6;
+            color: #a33;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Dashboard - Système d'Empreintes</h1>
+            <div class="subtitle">Surveillance en temps réel</div>
+        </header>
+
+        <div id="error-message"></div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Total Utilisateurs</h3>
+                <div class="value" id="total-users">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Entrées</h3>
+                <div class="value" id="total-logs">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Entrées Aujourd'hui</h3>
+                <div class="value" id="today-logs">-</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Utilisateurs Enregistrés</h2>
+            <div id="users-table">
+                <div class="loading">Chargement...</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Dernières Activités</h2>
+            <div id="logs-table">
+                <div class="loading">Chargement...</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Top 5 Utilisateurs les Plus Actifs</h2>
+            <div id="top-users-table">
+                <div class="loading">Chargement...</div>
+            </div>
+        </div>
+
+        <button class="refresh-btn" onclick="loadData()">Actualiser</button>
+        <div class="timestamp" id="last-update"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000';
+
+        async function loadData() {
+            try {
+                const statsResponse = await fetch(`${API_URL}/api/stats`);
+                const stats = await statsResponse.json();
+                document.getElementById('total-users').textContent = stats.total_users;
+                document.getElementById('total-logs').textContent = stats.total_logs;
+                document.getElementById('today-logs').textContent = stats.today_logs;
+
+                const usersResponse = await fetch(`${API_URL}/api/users`);
+                const usersData = await usersResponse.json();
+                displayUsers(usersData.users);
+
+                const logsResponse = await fetch(`${API_URL}/api/logs?limit=10`);
+                const logsData = await logsResponse.json();
+                displayLogs(logsData.logs);
+
+                displayTopUsers(stats.top_users);
+                document.getElementById('error-message').innerHTML = '';
+                document.getElementById('last-update').textContent = `Dernière mise à jour: ${new Date().toLocaleString('fr-FR')}`;
+            } catch (error) {
+                document.getElementById('error-message').innerHTML = `
+                    <div class="error">
+                        Erreur de connexion à l'API: ${error.message}<br>
+                        Vérifiez que l'API est démarrée sur http://localhost:5000
+                    </div>
+                `;
+            }
+        }
+
+        function displayUsers(users) {
+            const container = document.getElementById('users-table');
+            if (!users || users.length === 0) {
+                container.innerHTML = '<div class="loading">Aucun utilisateur enregistré</div>';
+                return;
+            }
+            let html = `<table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nom</th>
+                        <th>ID Empreinte</th>
+                        <th>Statut</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+            users.forEach(user => {
+                html += `<tr>
+                    <td>#${user.user_id}</td>
+                    <td>${user.name}</td>
+                    <td>${user.fingerprint_id}</td>
+                    <td><span class="badge">Actif</span></td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        function displayLogs(logs) {
+            const container = document.getElementById('logs-table');
+            if (!logs || logs.length === 0) {
+                container.innerHTML = '<div class="loading">Aucune activité enregistrée</div>';
+                return;
+            }
+            let html = `<table>
+                <thead>
+                    <tr>
+                        <th>ID Log</th>
+                        <th>Utilisateur</th>
+                        <th>Date & Heure</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+            logs.forEach(log => {
+                html += `<tr>
+                    <td>#${log.log_id}</td>
+                    <td>${log.name || 'Inconnu'}</td>
+                    <td>${new Date(log.timestamp).toLocaleString('fr-FR')}</td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        function displayTopUsers(topUsers) {
+            const container = document.getElementById('top-users-table');
+            if (!topUsers || topUsers.length === 0) {
+                container.innerHTML = '<div class="loading">Aucune donnée disponible</div>';
+                return;
+            }
+            let html = `<table>
+                <thead>
+                    <tr>
+                        <th>Position</th>
+                        <th>Nom</th>
+                        <th>Nombre d'entrées</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+            topUsers.forEach((user, index) => {
+                html += `<tr>
+                    <td>${index + 1}</td>
+                    <td>${user.name}</td>
+                    <td>${user.entries}</td>
+                </tr>`;
+            });
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        loadData();
+        setInterval(loadData, 10000);
+    </script>
+</body>
+</html>

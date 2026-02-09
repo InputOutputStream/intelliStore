@@ -1,0 +1,22 @@
+# Python Requirements for Integrated Smart Store System
+# Install with: pip3 install -r requirements.txt
+
+# Computer Vision
+opencv-python>=4.5.0
+numpy>=1.19.0
+
+# HTTP Requests
+requests>=2.25.0
+
+# Database
+mysql-connector-python>=8.0.0
+
+# PDF Generation
+fpdf2>=2.4.0
+
+# Web API (optional, for REST interface)
+flask>=2.0.0
+flask-cors>=3.0.0
+
+# Serial Communication
+pyserial>=3.5
