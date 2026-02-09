@@ -5,7 +5,7 @@
 #include <sys/time.h>
 #include <curl/curl.h>
 #include "../include/fingerprint.h"
-#include "../include/database.h"
+#include "../include/integrated_database.h"
 
 // Dépendance externe
 extern int serial_open(const char* port);
@@ -25,6 +25,36 @@ static uint8_t packet[256];
 #define FINGERPRINT_DELETE      0x0C
 #define FINGERPRINT_VERIFYPASSWORD 0x13
 #define FINGERPRINT_TEMPLATECOUNT 0x1D
+
+// ==================== ADAPTER FUNCTIONS ====================
+// These functions adapt between the old User API and new Client API
+
+int db_create_user(const char* name, int fingerprint_id) {
+    // Create a client with minimal information
+    // Age and sex can be set to defaults or updated later
+    return db_create_client(name, 0, "N/A", fingerprint_id, "");
+}
+
+int db_get_user_by_fingerprint(int fingerprint_id, User* user) {
+    if (!user) return -1;
+    
+    Client client;
+    int result = db_get_client_by_fingerprint(fingerprint_id, &client);
+    
+    if (result == 0) {
+        user->user_id = client.client_id;
+        strncpy(user->name, client.name, sizeof(user->name) - 1);
+        user->name[sizeof(user->name) - 1] = '\0';
+        user->fingerprint_id = client.fingerprint_id;
+    }
+    
+    return result;
+}
+
+int db_log_entry(int user_id) {
+    // Log fingerprint action as "entry"
+    return db_log_fingerprint_action(user_id, 0, "entry", true);
+}
 
 // ==================== FONCTIONS PRIVEES ====================
 
@@ -206,11 +236,8 @@ int fingerprint_enroll(const char* name) {
         return -1;
     }
     
-    // Enregistrer dans la base de donnees
-    if (db_create_user(name, id) <= 0) {
-        printf("   ❌ Erreur enregistrement base de donnees\n");
-        return -1;
-    }
+    // NOTE: Database registration is handled by the caller
+    // This allows registration_system.c to create a full Client record
     
     return id;
 }

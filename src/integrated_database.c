@@ -240,6 +240,74 @@ int db_get_product_by_visual_id(int visual_signature_id, Product* product) {
     return -1;
 }
 
+int db_get_all_products(Product** products, int* count) {
+    if (!products || !count) return -1;
+    
+    const char* sql = "SELECT * FROM products WHERE is_active = 1 ORDER BY name";
+    sqlite3_stmt* stmt;
+    
+    if (sqlite3_prepare_v2(db, sql, -1, &stmt, NULL) != SQLITE_OK) {
+        return -1;
+    }
+    
+    // Count rows
+    int num_rows = 0;
+    while (sqlite3_step(stmt) == SQLITE_ROW) num_rows++;
+    sqlite3_reset(stmt);
+    
+    if (num_rows == 0) {
+        *products = NULL;
+        *count = 0;
+        sqlite3_finalize(stmt);
+        return 0;
+    }
+    
+    // Allocate memory
+    *products = (Product*)malloc(num_rows * sizeof(Product));
+    if (!*products) {
+        sqlite3_finalize(stmt);
+        return -1;
+    }
+    
+    // Read data
+    int i = 0;
+    while (sqlite3_step(stmt) == SQLITE_ROW && i < num_rows) {
+        (*products)[i].product_id = sqlite3_column_int(stmt, 0);
+        
+        const char* name = (const char*)sqlite3_column_text(stmt, 1);
+        strncpy((*products)[i].name, name ? name : "", 99);
+        (*products)[i].name[99] = '\0';
+        
+        const char* type = (const char*)sqlite3_column_text(stmt, 2);
+        strncpy((*products)[i].type, type ? type : "", 49);
+        (*products)[i].type[49] = '\0';
+        
+        (*products)[i].price = sqlite3_column_double(stmt, 3);
+        
+        const char* exp = (const char*)sqlite3_column_text(stmt, 4);
+        if (exp) {
+            strncpy((*products)[i].expiry_date, exp, 19);
+            (*products)[i].expiry_date[19] = '\0';
+        } else {
+            (*products)[i].expiry_date[0] = '\0';
+        }
+        
+        const char* img_path = (const char*)sqlite3_column_text(stmt, 5);
+        strncpy((*products)[i].image_path, img_path ? img_path : "", 254);
+        (*products)[i].image_path[254] = '\0';
+        
+        (*products)[i].visual_signature_id = sqlite3_column_int(stmt, 6);
+        (*products)[i].stock_quantity = sqlite3_column_int(stmt, 7);
+        (*products)[i].is_active = sqlite3_column_int(stmt, 10);
+        
+        i++;
+    }
+    
+    *count = i;
+    sqlite3_finalize(stmt);
+    return 0;
+}
+
 // ==================== SHOPPING SESSION MANAGEMENT ====================
 
 int db_create_session(int client_id) {

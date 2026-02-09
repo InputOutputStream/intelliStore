@@ -16,6 +16,8 @@ void print_header(const char* title);
 int capture_face_image(int id, char* output_path);
 int capture_product_image(int id, char* output_path);
 void send_registration_to_api(int client_id, const char* type);
+void list_products();
+void list_all_products();
 
 // ==================== MENU FUNCTIONS ====================
 
@@ -332,6 +334,75 @@ void list_products() {
     }
     
     wait_enter();
+}
+
+void list_all_products() {
+    Product* products = NULL;
+    int count = 0;
+    
+    printf("═══════════════════════════════════════════════════════\n");
+    printf("              PRODUCT INVENTORY LIST\n");
+    printf("═══════════════════════════════════════════════════════\n\n");
+    
+    // Retrieve all active products from database
+    if (db_get_all_products(&products, &count) != 0) {
+        printf("❌ Error retrieving products from database\n");
+        return;
+    }
+    
+    // Check if any products exist
+    if (count == 0) {
+        printf("ℹ️  No products found in the database\n");
+        printf("   Use the registration system to add products.\n");
+        return;
+    }
+    
+    // Display products in a formatted table
+    printf("Found %d product(s):\n\n", count);
+    printf("%-4s %-25s %-15s %12s %8s %15s\n", 
+           "ID", "Name", "Type", "Price", "Stock", "Visual ID");
+    printf("───────────────────────────────────────────────────────────────────────────────\n");
+    
+    for (int i = 0; i < count; i++) {
+        printf("%-4d %-25s %-15s %9.2f XAF %8d %15d\n",
+               products[i].product_id,
+               products[i].name,
+               products[i].type,
+               products[i].price,
+               products[i].stock_quantity,
+               products[i].visual_signature_id);
+        
+        // Show expiry date if available
+        if (products[i].expiry_date[0] != '\0') {
+            printf("     ⏰ Expires: %s\n", products[i].expiry_date);
+        }
+        
+        // Warn about low stock
+        if (products[i].stock_quantity < 10) {
+            printf("     ⚠️  LOW STOCK WARNING\n");
+        }
+        
+        printf("\n");
+    }
+    
+    // Calculate total inventory value
+    double total_value = 0.0;
+    int total_items = 0;
+    
+    for (int i = 0; i < count; i++) {
+        total_value += products[i].price * products[i].stock_quantity;
+        total_items += products[i].stock_quantity;
+    }
+    
+    printf("───────────────────────────────────────────────────────────────────────────────\n");
+    printf("SUMMARY:\n");
+    printf("  Total Products: %d\n", count);
+    printf("  Total Items in Stock: %d\n", total_items);
+    printf("  Total Inventory Value: %.2f XAF\n", total_value);
+    printf("═══════════════════════════════════════════════════════\n");
+    
+    // IMPORTANT: Free the allocated memory
+    free(products);
 }
 
 // ==================== HELPER FUNCTIONS ====================

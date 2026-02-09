@@ -1,6 +1,3 @@
-# Makefile for Integrated Smart Store System
-# Combines fingerprint, face recognition, and product tracking
-
 CC = gcc
 CXX = g++
 CFLAGS = -Wall -O2 -Iinclude -Iexternal
