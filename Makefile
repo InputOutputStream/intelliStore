@@ -1,7 +1,7 @@
 CC = gcc
 CXX = g++
 CFLAGS = -Wall -O2 -Iinclude -Iexternal
-CXXFLAGS = -Wall -O2 -std=c++11 -Iinclude
+CXXFLAGS = -Wall -O2 -std=c++17 -Iinclude -Iexternal
 LDFLAGS = -lm -lpthread -ldl -lcurl
 
 # OpenCV flags
@@ -23,6 +23,7 @@ CPP_SOURCES_PRODUCT = product_recognition_server.cpp
 # Object files
 C_OBJECTS = $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(C_SOURCES))
 SQLITE_OBJ = $(OBJ_DIR)/sqlite3.o
+MONGOOSE_OBJ = $(OBJ_DIR)/mongoose.o
 
 # Executables
 REGISTRATION_BIN = $(BIN_DIR)/registration_system
@@ -30,7 +31,7 @@ FACE_SERVER_BIN = $(BIN_DIR)/face_recognition_server
 PRODUCT_SERVER_BIN = $(BIN_DIR)/product_recognition_server
 
 # Targets
-.PHONY: all clean setup directories registration face_server product_server python_deps
+.PHONY: all clean setup directories registration face_server product_server python_deps download_mongoose
 
 all: setup directories registration face_server product_server
 
@@ -38,10 +39,11 @@ all: setup directories registration face_server product_server
 directories:
 	@mkdir -p $(OBJ_DIR) $(BIN_DIR) database ../images/clients ../images/produits ../images/temp ../images/temp_produit ../invoices
 
-# Setup (download SQLite if needed)
-setup:
+# Setup (download SQLite and Mongoose if needed)
+setup: download_mongoose
 	@if [ ! -f "$(EXTERNAL_DIR)/sqlite3.h" ]; then \
 		echo "Downloading SQLite..."; \
+		mkdir -p $(EXTERNAL_DIR) && \
 		cd $(EXTERNAL_DIR) && \
 		wget https://sqlite.org/2024/sqlite-amalgamation-3450100.zip -O sqlite.zip && \
 		unzip -q sqlite.zip && \
@@ -50,10 +52,26 @@ setup:
 		rm -rf sqlite.zip sqlite-amalgamation-3450100; \
 	fi
 
+# Download Mongoose HTTP library
+download_mongoose:
+	@if [ ! -f "$(EXTERNAL_DIR)/mongoose.h" ]; then \
+		echo "Downloading Mongoose HTTP library..."; \
+		mkdir -p $(EXTERNAL_DIR) && \
+		cd $(EXTERNAL_DIR) && \
+		wget https://raw.githubusercontent.com/cesanta/mongoose/master/mongoose.h && \
+		wget https://raw.githubusercontent.com/cesanta/mongoose/master/mongoose.c && \
+		echo "✓ Mongoose downloaded"; \
+	fi
+
 # Compile SQLite
 $(SQLITE_OBJ): $(EXTERNAL_DIR)/sqlite3.c
 	@echo "Compiling SQLite..."
 	@$(CC) -c -o $@ $< -DSQLITE_THREADSAFE=0 -DSQLITE_OMIT_LOAD_EXTENSION
+
+# Compile Mongoose
+$(MONGOOSE_OBJ): $(EXTERNAL_DIR)/mongoose.c
+	@echo "Compiling Mongoose..."
+	@$(CC) -c -o $@ $< -DMG_ENABLE_LINES=1
 
 # Compile C sources
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
@@ -72,15 +90,15 @@ registration: $(C_OBJECTS) $(SQLITE_OBJ) $(OBJ_DIR)/registration_system.o
 	@echo "✓ Registration system built: $(REGISTRATION_BIN)"
 
 # Face recognition server (C++ with OpenCV)
-face_server: $(CPP_SOURCES_FACE)
+face_server: $(MONGOOSE_OBJ) $(CPP_SOURCES_FACE)
 	@echo "Compiling face recognition server..."
-	@$(CXX) $(CXXFLAGS) $(OPENCV_CFLAGS) -o $(FACE_SERVER_BIN) $< $(OPENCV_LIBS) -lmongoose
+	@$(CXX) $(CXXFLAGS) $(OPENCV_CFLAGS) -o $(FACE_SERVER_BIN) $(CPP_SOURCES_FACE) $(MONGOOSE_OBJ) $(OPENCV_LIBS) $(LDFLAGS)
 	@echo "✓ Face recognition server built: $(FACE_SERVER_BIN)"
 
 # Product recognition server (C++ with OpenCV)
-product_server: $(CPP_SOURCES_PRODUCT)
+product_server: $(MONGOOSE_OBJ) $(CPP_SOURCES_PRODUCT)
 	@echo "Compiling product recognition server..."
-	@$(CXX) $(CXXFLAGS) $(OPENCV_CFLAGS) -o $(PRODUCT_SERVER_BIN) $< $(OPENCV_LIBS) -lmongoose
+	@$(CXX) $(CXXFLAGS) $(OPENCV_CFLAGS) -o $(PRODUCT_SERVER_BIN) $(CPP_SOURCES_PRODUCT) $(MONGOOSE_OBJ) $(OPENCV_LIBS) $(LDFLAGS)
 	@echo "✓ Product recognition server built: $(PRODUCT_SERVER_BIN)"
 
 # Python dependencies
@@ -105,7 +123,7 @@ clean:
 # Clean everything including downloaded dependencies
 distclean: clean
 	@echo "Removing external dependencies..."
-	@rm -rf $(EXTERNAL_DIR)/sqlite3.*
+	@rm -rf $(EXTERNAL_DIR)/sqlite3.* $(EXTERNAL_DIR)/mongoose.*
 	@echo "✓ Distribution clean complete"
 
 # Help

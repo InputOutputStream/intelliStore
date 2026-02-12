@@ -426,22 +426,22 @@ void print_header(const char* title) {
 
 int capture_face_image(int id, char* output_path) {
     char cmd[512];
-    snprintf(output_path, 255, "../images/clients/%d.jpg", id);
+    snprintf(output_path, 255, "images/clients/%d.jpg", id);
     
     // Call Python script to capture from camera
     snprintf(cmd, sizeof(cmd), 
-            "python3 ../python/capture_face.py %d %s", id, output_path);
+            "python3 python/capture_face.py %d %s", id, output_path);
     
     return system(cmd);
 }
 
 int capture_product_image(int id, char* output_path) {
     char cmd[512];
-    snprintf(output_path, 255, "../images/produits/%d.jpg", id);
+    snprintf(output_path, 255, "images/produits/%d.jpg", id);
     
     // Call Python script to capture from camera
     snprintf(cmd, sizeof(cmd), 
-            "python3 ../python/capture_product.py %d %s", id, output_path);
+            "python3 python/capture_product.py %d %s", id, output_path);
     
     return system(cmd);
 }
